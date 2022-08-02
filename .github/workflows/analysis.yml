@@ -1,0 +1,37 @@
+name: Trigger CAP analysis
+
+on:
+  push:
+    branches:
+      - "*-review"
+
+env:
+  COMMIT_SHA: ${{ github.sha }}
+  REPO_URL: ${{ github.server_url}}/${{ github.repository }}.git
+  ANALYSIS_PROFILE: CodeViewFull
+
+jobs:
+  trigger:
+    name: Trigger Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Branch name
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+
+      - name: Trigger Analysis on current Branch & Commit
+        run: |
+          STATUSCODE=$(curl --location --request POST 'https://api.cap.k8.devfactory.com/api/api/repo_analyses/' \
+          --header 'cookie: ${{secrets.CAP_TOKEN}}' \
+          --header 'Content-type: application/json' \
+          --data-raw '[
+            {
+              "scm_url": ${{ env.REPO_URL }},
+              "branch": ${{ steps.extract_branch.outputs.branch }},
+              "commit_id": ${{ env.COMMIT_SHA }},
+              "analysis_profile_name": ${{ env.ANALYSIS_PROFILE }}
+            }
+          ]'
+          )
+
+          if [ $STATUSCODE -ge 400]; then exit 1;fi
