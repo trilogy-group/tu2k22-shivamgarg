@@ -1,7 +1,7 @@
 import imp
 from django.urls import path
 from .views import *
-from djoser.views import TokenCreateView
+# from djoser.views import TokenCreateView
 
 urlpatterns = [
     path('auth/signup/', RegisterUserAPIView.as_view()),
