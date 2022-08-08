@@ -1,6 +1,6 @@
 from dataclasses import fields
 from rest_framework import serializers
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth.password_validation import validate_password
 from .models import *
@@ -8,10 +8,10 @@ from .models import *
 
 #Serializer to Get user info
 class UserSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source='username')
+    # name = serializers.CharField(source='username')
     
     class Meta:
-        model = User
+        model = MyUser
         fields = ['id', 'name', 'email']
 
 
@@ -24,18 +24,19 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 #Serializer to Register User
 class RegisterSerializer(serializers.ModelSerializer):
+    name = serializers.CharField()
     email = serializers.EmailField(
     required=True,
-    validators=[UniqueValidator(queryset=User.objects.all())]
+    validators=[UniqueValidator(queryset=MyUser.objects.all())]
     )
     password = serializers.CharField(
     write_only=True, required=True, validators=[validate_password])
     class Meta:
-        model = User
-        fields = ('username', 'password', 'email')
+        model = MyUser
+        fields = ('name', 'password', 'email')
     def create(self, validated_data):
-        user = User.objects.create(
-            username=validated_data['username'],
+        user = MyUser.objects.create(
+            name=validated_data['name'],
             email=validated_data['email'],
             first_name='',
             last_name=''
