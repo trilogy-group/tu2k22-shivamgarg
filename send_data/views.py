@@ -90,7 +90,8 @@ class TokenDestroyView(APIView):
     """
     def post(self, request):
         try:
-            token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
+            #token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
+            token = self.request.META.get(('HTTP_AUTHORIZATION', None))
             if token == '' or token == NULL or token == ' ':
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
             token.delete()
