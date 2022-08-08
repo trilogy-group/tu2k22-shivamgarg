@@ -1,12 +1,19 @@
 import email
-from zoneinfo import available_timezones
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
+
+class MyUser(AbstractUser):
+    username = None
+    name = models.CharField(max_length=100, unique=True)
+    
+    USERNAME_FIELD = 'name'
+    QEQUIRED_FIELDS = ['name', 'email', 'password']
+    
+    def __str__(self):
+        return self.name
 
 class Users(models.Model):
-    user_id = models.OneToOneField(User, on_delete=models.CASCADE)
-    # name = models.OneToOneField(User, related_name=User.username, on_delete=models.CASCADE)
-    # email = models.OneToOneField(User, related_name=User.email, on_delete=models.CASCADE)
+    user_id = models.OneToOneField(MyUser, on_delete=models.CASCADE)
     available_funds = models.FloatField()
     blocked_funds = models.FloatField()
     
@@ -28,7 +35,7 @@ class Stocks(models.Model):
 
 
 class Holdings(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(MyUser, on_delete=models.CASCADE)
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
     volume = models.IntegerField()
     bid_price = models.FloatField()
@@ -52,7 +59,7 @@ class Ohlcv(models.Model):
 
 
 class Orders(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(MyUser, on_delete=models.CASCADE)
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
     bid_price = models.FloatField()
     type = models.CharField(max_length=4)
@@ -61,4 +68,3 @@ class Orders(models.Model):
     status = models.CharField(max_length=20)
     bid_volume = models.IntegerField()
     executed_volume = models.IntegerField()
-
