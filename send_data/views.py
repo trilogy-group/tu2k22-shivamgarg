@@ -45,9 +45,17 @@ class RegisterUserAPIView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
     def post(self, request, *args, **kwargs):
+        params = request.data.keys()
+        if 'email' not in params:
+            return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        elif 'password' not in params:
+            return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        obj = serializer.save()
+        if serializer.is_valid(raise_exception=False):
+            obj = serializer.save()
+        else:
+            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
         headers = self.get_success_headers(serializer.data)
         detail = Users(user_id=obj, available_funds=0, blocked_funds=0)
         detail.save()
@@ -99,18 +107,13 @@ class SectorList(APIView):
 
     def post(self, request, format=None):
         serializer = SectorSerializer(data=request.data)
-        if request.data['email'] and request.data['password']:
-            try:
-                if serializer.is_valid():
-                    serializer.save()
-                    return Response(serializer.data, status=status.HTTP_201_CREATED)
-                return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-            except:
-                return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-        elif request.data['password']:
-            Response("'email' field is missing", status=status.HTTP_400_BAD_REQUEST)
-        elif request.data['email']:
-            Response("'password' field is missing", status=status.HTTP_400_BAD_REQUEST)
+        try:
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        except:
+            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class SectorDetail(APIView):
