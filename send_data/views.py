@@ -98,6 +98,8 @@ class TokenDestroyView(APIView):
             return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+        
+
 
 class SectorList(APIView):
     """
