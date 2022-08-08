@@ -1,10 +1,9 @@
-from asyncio.windows_events import NULL
 from urllib import response
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import *
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import generics
 from .models import *
@@ -14,14 +13,20 @@ from django.http import Http404
 from django.utils import timezone
 from django.db.models import Sum, Avg
 
+from djoser import signals, utils
+from djoser.compat import get_user_email
+from djoser.conf import settings
 
 # Class based view to Get User Details using Token Authentication
 class UserDetailAPI(APIView):
     authentication_classes = (TokenAuthentication,)
     permission_classes = (AllowAny,)
     def get(self,request,*args,**kwargs):
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
-        user = User.objects.get(id=user_id)
+        try:
+            user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+        except:            
+            return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+        user = MyUser.objects.get(id=user_id)
         serializer1 = UserSerializer(user)
         userdata = Users.objects.get(user_id=user_id)
         serializer2 = UserDetailSerializer(userdata)
@@ -46,7 +51,28 @@ class RegisterUserAPIView(generics.CreateAPIView):
         headers = self.get_success_headers(serializer.data)
         detail = Users(user_id=obj, available_funds=0, blocked_funds=0)
         detail.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        response_data = {
+            'id': obj.id
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class TokenCreateView(utils.ActionViewMixin, generics.GenericAPIView):
+    """
+    Use this endpoint to obtain user authentication token.
+    """
+
+    serializer_class = settings.SERIALIZERS.token_create
+    permission_classes = settings.PERMISSIONS.token_create
+    model = MyUser
+
+    def _action(self, serializer):
+        # self.request.user.name = self.request.data.username
+        token = utils.login_user(self.request, serializer.user)
+        token_serializer_class = settings.SERIALIZERS.token
+        return Response(
+            data=token_serializer_class(token).data, status=status.HTTP_200_OK
+        )
 
 
 class TokenDestroyView(APIView):
@@ -54,8 +80,11 @@ class TokenDestroyView(APIView):
     Use this endpoint to logout user (remove user authentication token).
     """
     def post(self, request):
-        token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
-        token.delete()
+        try:
+            token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
+            token.delete()
+        except:            
+            return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -71,16 +100,16 @@ class SectorList(APIView):
     def post(self, request, format=None):
         serializer = SectorSerializer(data=request.data)
         if request.data['email'] and request.data['password']:
-            # try:
+            try:
                 if serializer.is_valid():
                     serializer.save()
                     return Response(serializer.data, status=status.HTTP_201_CREATED)
-            #     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-            # except:
-            #     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-        elif request.data['email'] == NULL:
+                return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+            except:
+                return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        elif request.data['password']:
             Response("'email' field is missing", status=status.HTTP_400_BAD_REQUEST)
-        elif request.data['password'] == NULL:
+        elif request.data['email']:
             Response("'password' field is missing", status=status.HTTP_400_BAD_REQUEST)
 
 
