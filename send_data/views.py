@@ -45,10 +45,11 @@ class RegisterUserAPIView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
     def post(self, request, *args, **kwargs):
-        params = request.data.keys()
-        if 'email' not in params:
+        params = request.data
+        keys = params.keys()
+        if 'email' not in keys or params['email'] == '':
             return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-        elif 'password' not in params:
+        elif 'password' not in keys or params['password'] == '':
             return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(data=request.data)
