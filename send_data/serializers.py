@@ -48,6 +48,15 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 #Serializer for sector
 class SectorSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=True)
+    description = serializers.CharField(required=False)
+    class Meta:
+        model = Sectors
+        fields = ['id', 'name', 'description']
+
+
+#Serializer for sector
+class SectorPatchSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False)
     description = serializers.CharField(required=False)
     class Meta:
@@ -64,9 +73,11 @@ class StockSerializer(serializers.ModelSerializer):
 
 #Serializer for order
 class OrderSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(input_formats='%b %d %Y %H:%M:%S')
+    updated_at = serializers.DateTimeField(input_formats='%b %d %Y %H:%M:%S')
     class Meta:
         model = Orders
-        fields = ["id", "stock", "user", "type", "bid_price", "bid_volume", "executed_volume", "status", "created_on", "updated_on"]
+        fields = ["id", "user", "stock", "bid_price", "type", "status", "bid_volume", "executed_volume", "created_at", "updated_at"]
 
 
 #Serializer for market
@@ -82,9 +93,3 @@ class OhlcvSerializer(serializers.ModelSerializer):
         model = Ohlcv
         fields = ['day', 'stock', 'open', 'low', 'high', 'close', 'volume']
 
-
-#Serializer for holding
-# class HoldingSerializer(serializers.Serializer):
-    # id = serializers.IntegerField()
-    # avg_bid_price = serializers.FloatField()
-    # total_volume = serializers.FloatField()

@@ -18,7 +18,6 @@ from djoser.compat import get_user_email
 from djoser.conf import settings
 
 
-
 class IsOwnerOrReadOnlyNote(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
@@ -71,7 +70,7 @@ class RegisterUserAPIView(generics.CreateAPIView):
         # else:
         #     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
         headers = self.get_success_headers(serializer.data)
-        detail = Users(user_id=obj, available_funds=0, blocked_funds=0)
+        detail = Users(user_id=obj, available_funds=5000, blocked_funds=0)
         detail.save()
         response_data = {
             'id': obj.id
@@ -164,7 +163,7 @@ class SectorDetail(APIView):
 
     def patch(self, request, pk, format=None):
         sector = self.get_object(pk)
-        serializer = SectorSerializer(sector, data=request.data)
+        serializer = SectorPatchSerializer(sector, data=request.data)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             return Response(serializer.data)
@@ -237,29 +236,39 @@ class OrderList(APIView):
         user_id = request.user.id
         newPost = request.data
         newPost['user'] = user_id
-        newPost['status'] = 'COMPLETE'
+        newPost['status'] = 'PENDING'
         newPost['executed_volume'] = 0
         serializer = OrderSerializer(data=request.data)
         
-        sufficient_fund = float(newPost['bid_price']) * float(newPost['bid_volume'])
-        userdata = Users.objects.get(user_id=user_id)
-        available_fund = userdata.available_funds
-        if available_fund - sufficient_fund > 0:
+        if newPost['type'] == 'BUY':
+            sufficient_fund = float(newPost['bid_price']) * float(newPost['bid_volume'])
+            userdata = Users.objects.get(user_id=user_id)
+            available_fund = userdata.available_funds
+            if available_fund < sufficient_fund:
+                err = {"non_field_errors":["Insufficient Wallet Balance"]}
+                return Response(err, status=status.HTTP_400_BAD_REQUEST)
             new_data = {
                 "available_funds": available_fund - sufficient_fund,
                 "blocked_funds": userdata.blocked_funds + sufficient_fund
             }
             userSerializer = UserDetailSerializer(userdata, data=new_data)
-            if userSerializer.is_valid():
+            if userSerializer.is_valid(raise_exception=True):
                 userSerializer.save()
+        else:
+            sufficient_stock = float(newPost['bid_volume'])
+            available_stock = Holdings.objects.get(user_id=user_id, stock=newPost['stock']).volume
+            if available_stock:
+                if available_stock < sufficient_stock:
+                    err = {"non_field_errors":["Insufficient Stock Holdings"]}
+                    return Response(err, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response(userSerializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        err = {"non_field_errors":["Insufficient Wallet Balance"]}
-        return Response(err, status=status.HTTP_400_BAD_REQUEST)
+                err = {"non_field_errors":["Insufficient Stock Holdings"]}
+                return Response(err, status=status.HTTP_400_BAD_REQUEST)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OrderDetail(APIView):
