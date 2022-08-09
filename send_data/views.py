@@ -79,8 +79,11 @@ class TokenCreateView(utils.ActionViewMixin, generics.GenericAPIView):
         # self.request.user.name = self.request.data.username
         token = utils.login_user(self.request, serializer.user)
         token_serializer_class = settings.SERIALIZERS.token
+        returnData = {
+            'token': token_serializer_class(token).data['auth_token']
+        }
         return Response(
-            data=token_serializer_class(token).data, status=status.HTTP_200_OK
+            data=returnData, status=status.HTTP_200_OK
         )
 
 
@@ -90,13 +93,12 @@ class TokenDestroyView(APIView):
     """
     def post(self, request):
         try:
-            #token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
-            token = self.request.META.get(('HTTP_AUTHORIZATION', None))
+            token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
             if token == '' or token == NULL or token == ' ':
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
             token.delete()
         except:            
-            return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
         
@@ -116,8 +118,8 @@ class SectorList(APIView):
         try:
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+                return Response(serializer.data, status=status.HTTP_200_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_UNAUTHORIZED)
         except:
             return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
 
