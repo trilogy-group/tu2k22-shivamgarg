@@ -48,7 +48,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'send_data.disable_csrf.DisableCSRF'
+    #'send_data.disable_csrf.DisableCSRF'
 ]
 
 ROOT_URLCONF = 'django_rest.urls'

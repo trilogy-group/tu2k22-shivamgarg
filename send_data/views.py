@@ -1,5 +1,5 @@
 from urllib import response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission, SAFE_METHODS, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import *
@@ -17,13 +17,24 @@ from djoser import signals, utils
 from djoser.compat import get_user_email
 from djoser.conf import settings
 
+
+
+class IsOwnerOrReadOnlyNote(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+
+        return obj.author == request.user
+
+
+
 # Class based view to Get User Details using Token Authentication
 class UserDetailAPI(APIView):
     authentication_classes = (TokenAuthentication,)
-    permission_classes = (AllowAny,)
+    permission_classes = (IsAuthenticated,)
     def get(self,request,*args,**kwargs):
         try:
-            user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+            user_id = request.user.id
         except:            
             return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
         user = MyUser.objects.get(id=user_id)
@@ -45,18 +56,20 @@ class RegisterUserAPIView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
     def post(self, request, *args, **kwargs):
-        params = request.data
-        keys = params.keys()
-        if 'email' not in keys or params['email'] == '':
-            return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-        elif 'password' not in keys or params['password'] == '':
-            return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        # params = request.data
+        # keys = params.keys()
+        # return_error = {}
+        # if 'email' not in keys or params['email'] == '':
+        #     return_error.apppend({"email":["This field is required."]})
+        #     return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        # elif 'password' not in keys or params['password'] == '':
+        #     return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid(raise_exception=False):
+        if serializer.is_valid(raise_exception=True):
             obj = serializer.save()
-        else:
-            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        # else:
+        #     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
         headers = self.get_success_headers(serializer.data)
         detail = Users(user_id=obj, available_funds=0, blocked_funds=0)
         detail.save()
@@ -91,23 +104,30 @@ class TokenDestroyView(APIView):
     """
     Use this endpoint to logout user (remove user authentication token).
     """
-    def post(self, request):
-        try:
-            token = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None))
-            if token == '' or token == NULL or token == ' ':
-                return Response(status=status.HTTP_401_UNAUTHORIZED)
-            token.delete()
-        except:            
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
-        
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
+    # permission_classes = settings.PERMISSIONS.token_destroy
+
+    def post(self, request):
+        utils.logout_user(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SectorList(APIView):
     """
     List all sectors, or create a new sector.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get(self, request, format=None):
         sector = Sectors.objects.all()
         serializer = SectorSerializer(sector, many=True)
@@ -115,19 +135,22 @@ class SectorList(APIView):
 
     def post(self, request, format=None):
         serializer = SectorSerializer(data=request.data)
-        try:
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_UNAUTHORIZED)
-        except:
-            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class SectorDetail(APIView):
     """
     Retrieve, update or delete a sector instance.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
+
     def get_object(self, pk):
         try:
             return Sectors.objects.get(pk=pk)
@@ -152,6 +175,12 @@ class StockList(APIView):
     """
     List all stocks, or create a new stock.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get(self, request, format=None):
         stock = Stocks.objects.all()
         serializer = StockSerializer(stock, many=True)
@@ -159,16 +188,21 @@ class StockList(APIView):
 
     def post(self, request, format=None):
         serializer = StockSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StockDetail(APIView):
     """
     Retrieve, update or delete a stock instance.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get_object(self, pk):
         try:
             return Stocks.objects.get(pk=pk)
@@ -185,6 +219,12 @@ class OrderList(APIView):
     """
     List all orders, or create a new order.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get(self, request, format=None):
         Order = Orders.objects.all()
         serializer = OrderSerializer(Order, many=True)
@@ -223,6 +263,12 @@ class OrderDetail(APIView):
     """
     Retrieve a order instance.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get_object(self, pk):
         try:
             return Orders.objects.get(pk=pk)
@@ -239,6 +285,12 @@ class OrderDelete(APIView):
     """
     Delete a order instance.
     """
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def get_object(self, pk):
         try:
             return Orders.objects.get(pk=pk)
@@ -252,6 +304,12 @@ class OrderDelete(APIView):
 
 
 class OrderMatch(APIView):
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def post(self, request, format=None):
         user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
         orders = Orders.objects.filter(user=user_id).all()
@@ -272,8 +330,9 @@ class OrderMatch(APIView):
                         'executed_volume': 0
                     }
                     serializer = OrderSerializer(data=new_order)
-                    if serializer.is_valid():
+                    if serializer.is_valid(raise_exception=True):
                         serializer.save()
+                        return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 buy_obj = Orders.objects.all().exclude(user=user_id).order_by('bid_price')[0]
                 buy_obj.execution_volume = order.bid_volume
@@ -319,6 +378,12 @@ class OhlcvDetail(APIView):
 
 
 class OpenMarket(APIView):
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def post(self, request, format=None):
         user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
         if(user_id):
@@ -329,15 +394,20 @@ class OpenMarket(APIView):
                 "day": day
                 }
             serializer = MarketSerializer(market, data=data)
-            if serializer.is_valid():
+            if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_204_NO_CONTENT)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response('You are not authorized for this.')
 
 
 class CloseMarket(APIView):
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
     def post(self, request, format=None):
         user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
         if(user_id):
@@ -348,9 +418,8 @@ class CloseMarket(APIView):
                 "day": day
                 }
             serializer = MarketSerializer(market, data=data)
-            if serializer.is_valid():
+            if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response('You are not authorized for this.')
