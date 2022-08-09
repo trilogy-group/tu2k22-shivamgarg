@@ -165,10 +165,13 @@ class SectorDetail(APIView):
     def patch(self, request, pk, format=None):
         sector = self.get_object(pk)
         serializer = SectorSerializer(sector, data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # if serializer.is_valid():
+        #     serializer.save()
+        #     return Response(serializer.data)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StockList(APIView):
@@ -231,8 +234,8 @@ class OrderList(APIView):
         return Response(serializer.data)
 
     def post(self, request, format=None):
+        user_id = request.user.id
         newPost = request.data
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
         newPost['user'] = user_id
         newPost['status'] = 'COMPLETE'
         newPost['executed_volume'] = 0
@@ -255,8 +258,8 @@ class OrderList(APIView):
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        err = "Your fund is not enough to order."
-        return Response(err)
+        err = {"non_field_errors":["Insufficient Wallet Balance"]}
+        return Response(err, status=status.HTTP_400_BAD_REQUEST)
 
 
 class OrderDetail(APIView):
