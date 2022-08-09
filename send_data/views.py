@@ -186,6 +186,9 @@ class StockList(APIView):
     def get(self, request, format=None):
         stock = Stocks.objects.all()
         serializer = StockSerializer(stock, many=True)
+        for each in serializer.data:
+            value = each['price']
+            each['price'] = '{:.2f}'.format(value)
         return Response(serializer.data)
 
     def post(self, request, format=None):
@@ -214,7 +217,10 @@ class StockDetail(APIView):
     def get(self, request, pk, format=None):
         Stock = self.get_object(pk)
         serializer = StockSerializer(Stock)
-        return Response(serializer.data)
+        returndata = serializer.data
+        value = returndata['price']
+        returndata['price'] = '{:.2f}'.format(value)
+        return Response(returndata)
 
 
 class OrderList(APIView):

@@ -66,6 +66,7 @@ class SectorPatchSerializer(serializers.ModelSerializer):
 
 #Serializer for stock
 class StockSerializer(serializers.ModelSerializer):
+    price = serializers.FloatField(validators=[validate_decimals])
     class Meta:
         model = Stocks
         fields = ['id', 'sector', 'name', 'total_volume', 'unallocated', 'price']
@@ -92,4 +93,3 @@ class OhlcvSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ohlcv
         fields = ['day', 'stock', 'open', 'low', 'high', 'close', 'volume']
-
