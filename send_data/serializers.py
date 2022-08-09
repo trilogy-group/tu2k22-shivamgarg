@@ -24,7 +24,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 #Serializer to Register User
 class RegisterSerializer(serializers.ModelSerializer):
-    name = serializers.CharField()
+    name = serializers.CharField(required=True)
     email = serializers.EmailField(
     required=True,
     validators=[UniqueValidator(queryset=MyUser.objects.all())]
@@ -48,6 +48,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 #Serializer for sector
 class SectorSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=False)
+    description = serializers.CharField(required=False)
     class Meta:
         model = Sectors
         fields = ['id', 'name', 'description']
@@ -57,7 +59,7 @@ class SectorSerializer(serializers.ModelSerializer):
 class StockSerializer(serializers.ModelSerializer):
     class Meta:
         model = Stocks
-        fields = ['id', 'name', 'price', 'sector', 'unallocated', 'total_volume']
+        fields = ['id', 'sector', 'name', 'total_volume', 'unallocated', 'price']
 
 
 #Serializer for order
