@@ -51,7 +51,7 @@ class Holdings(models.Model):
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
     volume = models.IntegerField()
     bid_price = models.FloatField(validators=[validate_decimals])
-    bought_on = models.DateField()
+    bought_on = models.DateField(auto_now=True)
 
 
 class Market_day(models.Model):
@@ -75,8 +75,8 @@ class Orders(models.Model):
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
     bid_price = models.FloatField(validators=[validate_decimals])
     type = models.CharField(max_length=4)
-    created_at = models.DateTimeField(auto_now=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=20)
     bid_volume = models.IntegerField()
     executed_volume = models.IntegerField()
