@@ -44,8 +44,8 @@ class UserDetailAPI(APIView):
             "id": serializer1.data['id'],
             "name": serializer1.data['name'],
             "email": serializer1.data['email'],
-            "available_funds": serializer2.data['available_funds'],
-            "blocked_funds": serializer2.data['blocked_funds'],
+            "available_funds": '{:.2f}'.format(serializer2.data['available_funds']),
+            "blocked_funds": '{:.2f}'.format(serializer2.data['blocked_funds']),
         }
         return Response(returnData)
 
@@ -70,7 +70,7 @@ class RegisterUserAPIView(generics.CreateAPIView):
         # else:
         #     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
         headers = self.get_success_headers(serializer.data)
-        detail = Users(user_id=obj, available_funds=5000, blocked_funds=0)
+        detail = Users(user_id=obj, available_funds=400000, blocked_funds=0)
         detail.save()
         response_data = {
             'id': obj.id
@@ -329,7 +329,7 @@ class OrderMatch(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+        user_id = request.user.id
         orders = Orders.objects.filter(user=user_id).all()
         for order in orders:
             if(order.type == 'SELL'):
@@ -364,7 +364,7 @@ class OrderMatch(APIView):
 
 class GetHolding(APIView):
     def get(self, request, format=None):
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+        user_id = request.user.id
         data = Holdings.objects.filter(user=user_id).aggregate(investment=Sum('volume'), current_value=Sum('bid_price'))
         posessed = Holdings.objects.values('stock').annotate(avg_bid_price=Avg('bid_price'), total_volume=Sum('volume'))
         posessed_data = []
@@ -403,7 +403,7 @@ class OpenMarket(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+        user_id = request.user.id
         if(user_id):
             day = timezone.now().day
             market = Market_day.objects.get(day=day)
@@ -427,7 +427,7 @@ class CloseMarket(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        user_id = Token.objects.get(key=self.request.META.get('HTTP_AUTHORIZATION', None)).user_id
+        user_id = request.user.id
         if(user_id):
             day = timezone.now().day
             market = Market_day.objects.get(day=day)
