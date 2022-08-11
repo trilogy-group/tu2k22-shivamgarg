@@ -57,7 +57,8 @@ ROOT_URLCONF = 'django_rest.urls'
 
 CORS_ORIGIN_WHITELIST = [
     'http://localhost',
-    'https://impulsetrading.io'
+    'https://impulsetrading.io',
+    'http://tu2k22-shivamgarg-ui.s3-website.ap-south-1.amazonaws.com'
 ]
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -81,7 +82,8 @@ CORS_ALLOW_METHODS = [
 
 ALLOWED_HOSTS = [
     "localhost",
-    "impulsetrading.io"
+    "impulsetrading.io",
+    "tu2k22-shivamgarg-ui.s3-website.ap-south-1.amazonaws.com"
 ]
 
 

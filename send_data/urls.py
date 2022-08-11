@@ -6,6 +6,7 @@ from .views import *
 urlpatterns = [
     path('auth/signup/', RegisterUserAPIView.as_view()),
     path('auth/login/', TokenCreateView.as_view(), name="login"),
+    path('auth/github_login/', TokenCreateView.as_view(), name="github_login"),
     path('auth/logout/', TokenDestroyView.as_view(), name="logout"),
     path('users/profile/', UserDetailAPI.as_view()),
     
