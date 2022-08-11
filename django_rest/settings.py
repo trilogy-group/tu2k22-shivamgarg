@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'send_data',
     'rest_framework.authtoken',
     'djoser',
+    'corsheaders'
 ]
 
 MIDDLEWARE = [
@@ -47,10 +48,18 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
     #'send_data.disable_csrf.DisableCSRF'
 ]
 
 ROOT_URLCONF = 'django_rest.urls'
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost/',
+    'http://localhost/shivan/',
+    'https://impulsetrading.io',
+
+]
 
 TEMPLATES = [
     {
