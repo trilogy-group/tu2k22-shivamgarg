@@ -51,7 +51,8 @@ class Holdings(models.Model):
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
     volume = models.IntegerField()
     bid_price = models.FloatField(validators=[validate_decimals])
-    bought_on = models.DateField(auto_now=True)
+    bought_on = models.IntegerField()
+    type = models.CharField(max_length=10, default="BUY")
 
 
 class Market_day(models.Model):

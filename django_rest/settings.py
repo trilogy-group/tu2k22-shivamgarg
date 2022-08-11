@@ -54,12 +54,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'django_rest.urls'
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost/',
-    'http://localhost/shivan/',
-    'https://impulsetrading.io',
 
+CORS_ORIGIN_WHITELIST = [
+    'http://localhost',
+    'https://impulsetrading.io'
 ]
+
 
 TEMPLATES = [
     {
