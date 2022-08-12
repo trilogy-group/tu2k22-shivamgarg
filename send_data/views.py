@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from django.http import Http404
 from django.utils import timezone
-from django.db.models import Sum, Avg
+from django.db.models import Sum, Avg, F
 
 from djoser import signals, utils
 from djoser.compat import get_user_email
@@ -195,7 +195,10 @@ class StockList(APIView):
         serializer = StockSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            returndata = serializer.data
+            value = returndata['price']
+            returndata['price'] = '{:.2f}'.format(value)
+            return Response(returndata, status=status.HTTP_201_CREATED)
 
 
 class StockDetail(APIView):
@@ -273,15 +276,20 @@ class OrderList(APIView):
                 userSerializer.save()
         else:
             sufficient_stock = float(newPost['bid_volume'])
-            try:
-                available_stock = Holdings.objects.get(user_id=user_id, stock=newPost['stock']).volume
-                if available_stock:
-                    if available_stock < sufficient_stock:
-                        err = {"non_field_errors":["Insufficient Stock Holdings"]}
-                        return Response(err, status=status.HTTP_400_BAD_REQUEST)
-            except:
+            available_stock = 0
+            # try:
+            holding_stock = Holdings.objects.filter(user=user_id, stock=newPost['stock']).aggregate(Sum('volume'))
+            if holding_stock['volume__sum']:
+                available_stock = holding_stock['volume__sum']
+                pending_sell = Orders.objects.filter(user=user_id, stock=newPost['stock'], status="PENDING", type="SELL").aggregate(volume=Sum(F('bid_volume') - F('executed_volume')))
+                if pending_sell['volume']:
+                    available_stock -= pending_sell['volume']
+            if available_stock < sufficient_stock:
                 err = {"non_field_errors":["Insufficient Stock Holdings"]}
                 return Response(err, status=status.HTTP_400_BAD_REQUEST)
+            # except:
+            #     err = {"non_field_errors":["Insufficient Stock Holdings"]}
+            #     return Response(err, status=status.HTTP_400_BAD_REQUEST)
 
         if serializer.is_valid():
             serializer.save()
@@ -335,13 +343,8 @@ class OrderDelete(APIView):
         remain_volume = Order.bid_volume - Order.executed_volume
         user_id = request.user.id
         userdata = Users.objects.get(user_id=user_id)
-        block_fund = {
-            "blocked_funds": userdata.blocked_funds - remain_volume * Order.bid_price,
-            "available_funds": userdata.available_funds
-        }
-        userSerializer = UserDetailSerializer(userdata, data=block_fund)
-        if userSerializer.is_valid(raise_exception=True):
-            userSerializer.save()
+        userdata.blocked_funds -= remain_volume * Order.bid_price
+        userdata.save()
 
         Order.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -355,22 +358,21 @@ class OrderMatch(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        # Sort all order of type BUY in  descending order
-        buying_orders = Orders.objects.filter(type="BUY").all().exclude(status="COMPLETED").order_by('-bid_price')
-        try:
-            market = Market_day.objects.filter().latest('day')
-            if market:
-                day = market.day + 1
-            else:
-                day = 1
-        except:
+        # Sort all order of type “BUY” in  descending order
+        buying_orders = Orders.objects.filter(type="BUY", status="PENDING").order_by('-bid_price').all()
+        markets = Market_day.objects
+        if markets.exists():
+            market = markets.filter().latest('day')
+            day = market.day
+        else:
+            market = Market_day.objects.create(day=1, status="OPEN")
             day = 1
         # Matching
         for buy_order in buying_orders:
             buy_bid_volume = buy_order.bid_volume
             buy_bid_price = buy_order.bid_price
-            # Sort all order of type SELL in ascending order
-            selling_orders = Orders.objects.filter(type="SELL", stock=buy_order.stock).all().exclude(status="COMPLETED").order_by('bid_price')
+            # Sort all order of type “SELL” in ascending order
+            selling_orders = Orders.objects.filter(type="SELL", stock=buy_order.stock, status="PENDING").all().order_by('bid_price')
             for sell_order in selling_orders:
                 remain_volume = buy_bid_volume - buy_order.executed_volume
                 available_volume = sell_order.bid_volume - sell_order.executed_volume
@@ -394,22 +396,52 @@ class OrderMatch(APIView):
                 transaction_fund = transaction_price * transaction_volumn
                 
                 sell_order.executed_volume += transaction_volumn
-                if(sell_order.executed_volume == sell_order.bid_volume):
+                if transaction_volumn == available_volume:
                     sell_order.status = "COMPLETED"
                 sell_order.save()
                 sell_user = Users.objects.get(user_id=sell_order.user)
                 sell_user.available_funds += transaction_fund
                 sell_user.save()
-                Holdings.objects.create(user=sell_order.user, stock=sell_order.stock, volume=transaction_volumn * -1, bid_price=transaction_price, type="SELL", bought_on=day)
+                ### decrease holdings
+                selling_list = Holdings.objects.filter(user=sell_order.user, stock=sell_order.stock).all()
+                discount_amount = transaction_volumn
+                for selling in selling_list:
+                    if discount_amount > selling.volume:
+                        discount_amount -= selling.volume
+                        selling.volume = 0                        
+                        selling.save()
+                        continue
+                    else:
+                        selling.volume -= discount_amount
+                        selling.save()
+                        discount_amount = 0
+                        break
+                ### increase ohlcv
+                ohlcvs = Ohlcv.objects.filter(day=market.day, stock=sell_order.stock.id)
+                if ohlcvs.exists():
+                    ohlcv = ohlcvs.first()
+                    ohlcv.volume += int(transaction_volumn)
+                    ohlcv.save()
+                else:
+                    Ohlcv.objects.create(
+                        day = day,
+                        stock = sell_order.stock,
+                        open = 0,
+                        high = 0,
+                        low = 0,
+                        close = 0,
+                        volume = transaction_volumn,
+                        market = market
+                    )
                 
                 buy_order.executed_volume += transaction_volumn
                 buy_user = Users.objects.get(user_id=buy_order.user)
                 buy_user.available_funds -= transaction_fund
                 buy_user.blocked_funds -= buy_bid_price * transaction_volumn
                 buy_user.save()
-                Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, type="BUY", bought_on=day)
+                Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, bought_on=day)
 
-            if(buy_order.executed_volume == buy_bid_volume):
+            if buy_order.executed_volume == buy_bid_volume:
                 buy_order.status = "COMPLETED"
                 buy_order.save()
                 continue
@@ -442,9 +474,9 @@ class OrderMatch(APIView):
             buy_user.available_funds -= transaction_fund
             buy_user.blocked_funds -= buy_bid_price * transaction_volumn
             buy_user.save()
-            Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, type="BUY", bought_on=day)
+            Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, bought_on=day)
 
-            if(buy_order.executed_volume == buy_order.bid_volume):
+            if transaction_volumn == remain_volume:
                 buy_order.status = "COMPLETED"
                 
             buy_order.save()
@@ -455,20 +487,28 @@ class OrderMatch(APIView):
 class GetHolding(APIView):
     def get(self, request, format=None):
         user_id = request.user.id
-        data = Holdings.objects.filter(user=user_id).aggregate(investment=Sum('volume'), current_value=Sum('bid_price'))
-        posessed = Holdings.objects.values('stock').annotate(avg_bid_price=Avg('bid_price'), total_volume=Sum('volume'))
+        holding_list = Holdings.objects.filter(user=user_id)
+        possessed = holding_list.values('stock').annotate(avg_investment=Sum(F('volume') * F('bid_price')), total_volume=Sum('volume'))
+        investment = 0
+        current_value = 0
         posessed_data = []
-        for each in posessed:
-            name = Stocks.objects.get(pk=each['stock']).sector.name
+        for each in possessed:
+            stock = Stocks.objects.get(pk=each['stock'])
             new_row = {
-                'id': each['stock'],
-                'name': name,
-                'avg_bid_price': each['avg_bid_price'],
-                'total_volume': each['total_volume']
+                'id': stock.id,
+                'name': stock.name,
+                'avg_bid_price': '{:.2f}'.format(each['avg_investment'] / each['total_volume']),
+                'total_volume': int(each['total_volume'])
             }
+            investment += each['avg_investment']
+            current_value += each['total_volume'] * stock.price
             posessed_data.append(new_row)
         
-        data['stocks_posessed'] = posessed_data
+        data = {
+            'investment': '{:.2f}'.format(investment),
+            'current_value': '{:.2f}'.format(current_value),
+            'stocks_possessed': posessed_data
+        }
         
         return Response(data)
 
@@ -479,6 +519,19 @@ class OhlcvDetail(APIView):
     """
     def get(self, request, format=None):
         day = int(request.GET['day'])
+        if day == 0:
+            returnData = [
+                {
+                    "day": 0,
+                    "stock": "string",
+                    "open": "100.00",
+                    "low": "100.00",
+                    "high": "100.00",
+                    "close": "100.00",
+                    "volume": 100
+                }
+            ]
+            return Response(returnData)
         try:
             market = Market_day.objects.get(day=day)
         except:
@@ -520,13 +573,10 @@ class OpenMarket(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        try:
-            market = Market_day.objects.filter().latest('day')
-            if market:
-                day = market.day + 1
-            else:
-                day = 1
-        except:
+        market = Market_day.objects.filter()
+        if market.exists():
+            day = market.latest('day').day + 1
+        else:
             day = 1
         data = {
             "status": "OPEN",
@@ -546,50 +596,43 @@ class CloseMarket(APIView):
         TokenAuthentication,
     ]
     def post(self, request, format=None):
-        try:
-            market = Market_day.objects.filter().latest('day')
-            if market:
-                data = {
-                    "status": "CLOSE",
-                    "day": market.day
-                    }
-                serializer = MarketSerializer(market, data=data)
-            else:
-                data = {
-                    "status": "CLOSE",
-                    "day": 1
-                    }
-                serializer = MarketSerializer(data=data)
-        except:
-            data = {
-                "status": "CLOSE",
-                "day": 1
-                }
-            serializer = MarketSerializer(data=data)
-            
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
+        markets = Market_day.objects
+        if markets.exists():
+            market = markets.latest('day')
+            market.status = "CLOSE"
+            market.save()
+        else:
+            market = Market_day.objects.create(day=1, status="CLOSE")
 
-        market = Market_day.objects.latest('day')
         stock_list = Stocks.objects.all()
         for stock in stock_list:
-            holding_list = Holdings.objects.filter(stock=stock, type="BUY")
-            print('here')
+            holding_list = Holdings.objects.filter(stock=stock, bought_on=market.day)
             if holding_list.exists():
                 open_price = holding_list.order_by('id').first().bid_price
                 close_price = holding_list.order_by('-id').first().bid_price
                 high_price = holding_list.order_by('-bid_price').first().bid_price
                 low_price = holding_list.order_by('bid_price').first().bid_price
                 volume = holding_list.aggregate(Sum('volume'))['volume__sum']
-                Ohlcv.objects.create(
-                    day=market.day,
-                    stock=stock,
-                    open=open_price,
-                    high=high_price,
-                    low=low_price,
-                    close=close_price,
-                    volume=volume,
-                    market=market
-                )
+                
+                ohlcvs = Ohlcv.objects.filter(day=market.day,stock=stock.id)
+                if ohlcvs.exists():
+                    ohlcv = ohlcvs.first()
+                    ohlcv.open = open_price
+                    ohlcv.high = high_price
+                    ohlcv.low = low_price
+                    ohlcv.close = close_price
+                    ohlcv.volume += volume
+                    ohlcv.save()
+                else:
+                    Ohlcv.objects.create(
+                        day=market.day,
+                        stock=stock,
+                        open=open_price,
+                        high=high_price,
+                        low=low_price,
+                        close=close_price,
+                        volume=volume,
+                        market=market
+                    )
 
         return Response(status=status.HTTP_204_NO_CONTENT)

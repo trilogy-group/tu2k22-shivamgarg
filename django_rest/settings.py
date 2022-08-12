@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-okn$c17zn^lcap7v@45uadid5@gv9or92-2hn-olra%z#o^*a$'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 ALLOWED_HOSTS = ['*']
 
 
@@ -50,7 +50,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #'send_data.disable_csrf.DisableCSRF'
+    'send_data.disable_csrf.DisableCSRF'
 ]
 
 ROOT_URLCONF = 'django_rest.urls'

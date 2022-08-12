@@ -52,7 +52,6 @@ class Holdings(models.Model):
     volume = models.IntegerField()
     bid_price = models.FloatField(validators=[validate_decimals])
     bought_on = models.IntegerField()
-    type = models.CharField(max_length=10, default="BUY")
 
 
 class Market_day(models.Model):

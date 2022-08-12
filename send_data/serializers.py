@@ -102,3 +102,10 @@ class OhlcvSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ohlcv
         fields = ['day', 'stock', 'open', 'low', 'high', 'close', 'volume']
+
+
+#Serializer for holding
+# class HoldingSerializer(serializers.Serializer):
+    # id = serializers.IntegerField()
+    # avg_bid_price = serializers.FloatField()
+    # total_volume = serializers.FloatField()
