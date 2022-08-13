@@ -1,6 +1,6 @@
 import boto3
 
-file_name = "/workspace/tu2k22-shivamgarg/aws-intro.txt"
+file_name = "images.txt"
 bucket = "shivamgarg"
 Credentials = {
         "AccessKeyId": "ASIAUCMU474JG7QQ7VVL",
