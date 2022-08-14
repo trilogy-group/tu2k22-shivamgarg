@@ -4,7 +4,7 @@ name: dev-build-and-deploy
 on:
   push:
     branches:
-      - main
+      - track8_react
 jobs:
   # To build the project
   build-myapp:
