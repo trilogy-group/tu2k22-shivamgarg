@@ -1,0 +1,10 @@
+python
+django
+djangorestframework
+djoser
+django-cors-headers
+flask
+opentelemetry-distro
+opentelemetry-exporter-jaeger
+opentelemetry-exporter-otlp
+opentelemetry-exporter-prometheus

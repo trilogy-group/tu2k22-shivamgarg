@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-okn$c17zn^lcap7v@45uadid5@gv9or92-2hn-olra%z#o^*a$'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 
@@ -50,7 +50,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'send_data.disable_csrf.DisableCSRF'
+    #'send_data.disable_csrf.DisableCSRF'
 ]
 
 ROOT_URLCONF = 'django_rest.urls'
@@ -83,7 +83,8 @@ CORS_ALLOW_METHODS = [
 ALLOWED_HOSTS = [
     "localhost",
     "impulsetrading.io",
-    "tu2k22-shivamgarg-ui.s3-website.ap-south-1.amazonaws.com"
+    "tu2k22-shivamgarg-ui.s3-website.ap-south-1.amazonaws.com",
+    ""
 ]
 
 
@@ -145,7 +146,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
+CORS_ORIGIN_ALLOW_ALL=True
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.0/topics/i18n/
