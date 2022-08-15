@@ -1,0 +1,106 @@
+body{
+
+	background-color: #f8f8f8;
+	font-family: 'Cairo', sans-serif;
+
+}
+@media(max-width: 650px)
+{
+	body{
+
+		background-color: #fff !important;
+	}
+}
+.__login_row__
+{
+	height: 100vh;	
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.__login_column__
+{
+	padding: 10px 20px 10px 20px;
+	border-radius: 0px !important;
+	border-color: transparent;	
+}
+
+.__inner_box__
+{	
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+}
+
+.__logo__
+{
+	width: 75px !important;
+
+}
+.__orange_text__
+{
+	color: #FF7E00 !important;
+	font-weight: 600;
+	text-align: center;
+}
+.fa{
+
+	font-size: 16px !important;
+	border-radius: 0px !important;
+}
+.input-group-text
+{
+	border-radius: 0px !important;	
+}
+
+.form-control
+{
+	font-size: 16px !important;
+	border-radius: 0px !important;
+
+}
+.btn-orange, .btn-orange:focus
+{
+	width: 100% !important;
+	border-radius: 0px !important;
+	background-color: #FF7E00 !important;
+	color: #fff !important;
+}
+.btn-github, .btn-github:focus
+{
+	background-color: black !important;
+	color: #fff !important;
+	width: 100% !important;
+	border-radius: 0px;
+
+}
+.btn-github > img{
+
+	width: 30px;
+	margin-right: 10px;
+	margin-top: -2px;
+}
+.__bottom_text__
+{
+	font-weight: 600;
+}
+.link-text{
+	text-decoration: none;
+	cursor: pointer;
+	color: #FF7E00 !important;
+	font-weight: 700;
+}
+.form-control
+{
+	box-shadow: none !important;
+	outline: none !important;
+	background-color: white;
+}
+.alert-danger
+{
+	border-radius: 0px !important;
+	border-color: transparent !important;
+	display: none;
+}
