@@ -1,4 +1,3 @@
-python
 django
 djangorestframework
 djoser
