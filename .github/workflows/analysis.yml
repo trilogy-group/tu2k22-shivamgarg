@@ -21,17 +21,17 @@ jobs:
 
       - name: Trigger Analysis on current Branch & Commit
         run: |
-          STATUSCODE=$(curl --location --request POST 'https://api.cap.k8.devfactory.com/api/api/repo_analyses/' \
-          --header 'cookie: ${{secrets.CAP_TOKEN}}' \
-          --header 'Content-type: application/json' \
-          --data-raw '[
-            {
-              "scm_url": ${{ env.REPO_URL }},
-              "branch": ${{ steps.extract_branch.outputs.branch }},
-              "commit_id": ${{ env.COMMIT_SHA }},
-              "analysis_profile_name": ${{ env.ANALYSIS_PROFILE }}
-            }
-          ]'
-          )
-
-          if [ $STATUSCODE -ge 400]; then exit 1;fi
+           STATUSCODE=$(
+            curl -s -w '%{http_code}' --request POST 'https://api.cap.k8.devfactory.com/api/repo_analyses/' \
+              --header 'Content-type: application/json' \
+              --header 'cookie: ${{secrets.CAP_TOKEN}}' \
+              --data-raw '[
+                {
+                  "scm_url": "${{ env.REPO_URL }}",
+                  "branch": "${{ steps.extract_branch.outputs.branch }}",
+                  "commit_id": "${{ env.COMMIT_SHA }}",
+                  "analysis_profile_name": "${{ env.ANALYSIS_PROFILE }}"
+                }
+              ]'
+            )
+            echo $STATUSCODE
