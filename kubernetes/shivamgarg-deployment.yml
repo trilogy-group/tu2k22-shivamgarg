@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shivamgarg-backend
+  labels:
+    app: shivamgarg
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: shivamgarg
+  template:
+    metadata:
+      labels:
+        app: shivamgarg
+    spec:
+      containers:
+      - name: shivamgarg-backend
+        image: 280022023954.dkr.ecr.us-east-1.amazonaws.com/shivamgarg:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "250m"

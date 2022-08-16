@@ -1,0 +1,8 @@
+apiVersion: demo.com/v1
+kind: GetDetail
+metadata:
+  name: shivamgarg-crd-obj
+spec:
+  name: "Shivamgarg"
+  age: 22
+  email : shivam.garg@trilogy.com
