@@ -2,11 +2,13 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import dotenv
 from opentelemetry.instrumentation.django import DjangoInstrumentor
 
 
 def main():
     """Run administrative tasks."""
+    dotenv.read_dotenv()
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_rest.settings')
     
     DjangoInstrumentor().instrument()

@@ -1,9 +1,11 @@
 import imp
 from django.urls import path
+from django.contrib import admin
 from .views import *
 # from djoser.views import TokenCreateView
 
 urlpatterns = [
+    path('admin/', admin.site.urls),
     path('auth/signup/', RegisterUserAPIView.as_view()),
     path('auth/login/', TokenCreateView.as_view(), name="login"),
     path('auth/github_login/', TokenCreateView.as_view(), name="github_login"),
