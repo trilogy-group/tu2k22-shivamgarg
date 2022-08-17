@@ -1,3 +1,4 @@
+from random import uniform
 from urllib import response
 from rest_framework.permissions import AllowAny, BasePermission, SAFE_METHODS, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.views import APIView
@@ -16,16 +17,15 @@ from django.db.models import Sum, Avg, F
 from djoser import signals, utils
 from djoser.compat import get_user_email
 from djoser.conf import settings
-from opentelemetry import trace, metrics
+# from opentelemetry import trace, metrics
 
-from random import randint
 from flask import Flask, request
 
 # Acquire a tracer
-tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
+# tracer = trace.get_tracer(__name__)
+# meter = metrics.get_meter(__name__)
 
-app = Flask(__name__)
+# app = Flask(__name__)
 
 
 class IsOwnerOrReadOnlyNote(BasePermission):
@@ -35,7 +35,7 @@ class IsOwnerOrReadOnlyNote(BasePermission):
 
         return obj.author == request.user
 
-@app.route("/api/v1/users/profile")
+# @app.route("/api/v1/users/profile")
 # Class based view to Get User Details using Token Authentication
 class UserDetailAPI(APIView):
     authentication_classes = (TokenAuthentication,)
@@ -59,13 +59,54 @@ class UserDetailAPI(APIView):
         }
         return Response(returnData)
 
+    def patch(self, request, format=None):       
+    
+        try:
+            user_id = request.user.id
+        except:            
+            return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+        user = MyUser.objects.get(id=user_id)
+        user.is_superuser = 1
+        user.save()
+        serializer = UserSerializer(user)
+        returnData = serializer.data
+        returnData['is_superuser'] = user.is_superuser
+        return Response(returnData, status=status.HTTP_200_OK)
+
+        
+class UserAdminAPI(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def patch(self, request, format=None):       
+    
+        try:
+            user_id = request.user.id
+        except:            
+            return Response({"detail":"Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+        user = MyUser.objects.get(id=user_id)
+        user.is_superuser = 1
+        user.save()
+        serializer = UserSerializer(user)
+        returnData = serializer.data
+        returnData['is_superuser'] = user.is_superuser
+        return Response(returnData, status=status.HTTP_200_OK)
+
 
 #Class based view to register user
 class RegisterUserAPIView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
     def post(self, request, *args, **kwargs):
-        
+        # params = request.data
+        # keys = params.keys()
+        # return_error = {}
+        # if 'email' not in keys or params['email'] == '':
+        #     return_error.apppend({"email":["This field is required."]})
+        #     return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        # elif 'password' not in keys or params['password'] == '':
+        #     return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             obj = serializer.save()
@@ -119,7 +160,7 @@ class TokenDestroyView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@app.route("/api/v1/sectors")
+# @app.route("/api/v1/sectors")
 class SectorList(APIView):
     """
     List all sectors, or create a new sector.
@@ -131,19 +172,24 @@ class SectorList(APIView):
         TokenAuthentication,
     ]
     def get(self, request, format=None):
-        with tracer.start_as_current_span("getSectors") as getSectors:
+        # with tracer.start_as_current_span("getSectors") as getSectors:
             sector = Sectors.objects.all()
             serializer = SectorSerializer(sector, many=True)
             
             return Response(serializer.data)
 
     def post(self, request, format=None):
-        with tracer.start_as_current_span("postSectors") as postSectors:
-            serializer = SectorSerializer(data=request.data)
-            
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # with tracer.start_as_current_span("postSectors") as postSectors:
+            user_id = request.user.id
+            user = MyUser.objects.get(pk=user_id)
+            if user.is_superuser == 1:
+                serializer = SectorSerializer(data=request.data)
+                
+                if serializer.is_valid(raise_exception=True):
+                    serializer.save()
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response({"detail":"Unauthorized to create new sector."}, status=status.HTTP_401_UNAUTHORIZED)                
 
 
 class SectorDetail(APIView):
@@ -194,18 +240,27 @@ class StockList(APIView):
         stock = Stocks.objects.all()
         serializer = StockSerializer(stock, many=True)
         for each in serializer.data:
-            value = each['price']
+            value = each['price'] * uniform(0.5, 1.5)
             each['price'] = '{:.2f}'.format(value)
+            update_stock = Stocks.objects.get(pk=each['id'])
+            update_stock.price = round(value, 2)
+            update_stock.save()
+
         return Response(serializer.data)
 
     def post(self, request, format=None):
-        serializer = StockSerializer(data=request.data)
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            returndata = serializer.data
-            value = returndata['price']
-            returndata['price'] = '{:.2f}'.format(value)
-            return Response(returndata, status=status.HTTP_201_CREATED)
+        user_id = request.user.id
+        user = MyUser.objects.get(pk=user_id)
+        if user.is_superuser == 1:
+            serializer = StockSerializer(data=request.data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                returndata = serializer.data
+                value = returndata['price']
+                returndata['price'] = '{:.2f}'.format(value)
+                return Response(returndata, status=status.HTTP_201_CREATED)
+        else:
+            return Response({"detail":"Unauthorized to create new stock."}, status=status.HTTP_401_UNAUTHORIZED)                
 
 
 class StockDetail(APIView):
