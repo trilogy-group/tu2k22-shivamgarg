@@ -28,6 +28,136 @@ from flask import Flask, request
 # app = Flask(__name__)
 
 
+
+
+import django
+django.setup()
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.decorators import api_view
+from random import randrange
+from datetime import datetime, timedelta
+from multiprocessing import Pool
+import urllib
+from datetime import datetime
+from operator import itemgetter
+
+def process_log(url):
+    data = urllib.request.urlopen(url)
+    data = data.read().decode('utf-8')
+    data = data.split("\r\n")
+
+    output = {}
+
+    for line in data:
+        line = line.split(" ")
+        timestamp = int(line[1]) // 1000
+        time_obj = datetime.utcfromtimestamp(timestamp)
+        hour = time_obj.strftime('%H')
+        minute = (int(time_obj.strftime('%M')) // 15) * 15
+
+        endMinute = str(minute + 15) if minute + 15 < 60 else "00"
+        endHour = hour if endMinute != "00" else str(int(hour) + 1)
+        endHour = "00" if endHour == "24" else endHour
+        key = (hour + ":" + (str(minute) if minute > 9 else "0" + str(minute))) + "-" + (endHour if len(endHour) > 1 else "0" + endHour) + ":" + endMinute
+        order_type = line[2]
+
+        if key in output:
+            if order_type in output[key]:
+                output[key][order_type] += 1
+            else:
+                output[key][order_type] = 1
+        else:
+            output[key] = {}
+            output[key][order_type] = 1
+
+    return output
+
+@api_view(["POST"])
+def process_logs(request):
+    files = request.data.get("logFiles", [])
+    print(files)
+    p = Pool(int(request.data.get("parallelFileProcessingCount")))
+    calculated_logs = p.map(process_log, files)
+    output_logs_dict = {}
+
+    notFirst = False
+    for log in calculated_logs:
+        if notFirst:
+            for span in log:
+                if span in output_logs_dict:
+                    for order_type in log[span]:
+                        if order_type in output_logs_dict[span]:
+                            output_logs_dict[span][order_type] += log[span][order_type]
+                        else:
+                            output_logs_dict[span][order_type] = log[span][order_type]
+                else:
+                    output_logs_dict[span] = log[span]
+        else:
+            output_logs_dict = log
+            notFirst = True
+
+    output_array = []
+    for log in output_logs_dict:
+        order_details = []
+        for order in output_logs_dict[log]:
+            order_details.append({
+                "order": order,
+                "count": output_logs_dict[log][order]
+            })
+        order_details = sorted(order_details, key=itemgetter('order'), reverse=True)
+        output_array.append({
+            "timestamp": log,
+            "logs": order_details
+        })    
+
+    priorities = {}
+    first_priority_item = output_array[0]["timestamp"]
+    first_priority_item_arr = first_priority_item.split("-")
+    first_priority_item_start_arr = first_priority_item_arr[0].split(":")
+    hour = int(first_priority_item_start_arr[0])
+    minute = int(first_priority_item_start_arr[1])
+
+    first_priority_item_end_arr = first_priority_item_arr[1].split(":")
+    endHour = int(first_priority_item_end_arr[0])
+    endMinute = int(first_priority_item_end_arr[1])
+
+    priority = 0
+    priorities[first_priority_item] = priority
+    while priority < 95:
+        minute = minute + 15
+        hour = hour if minute < 60 else hour + 1
+        hour = hour if hour < 24 else 0
+        minute = minute if minute < 60 else 0
+        endMinute = endMinute + 15
+        endHour = endHour if endMinute < 60 else endHour + 1
+        endHour = endHour if endHour < 24 else 0
+        endMinute = endMinute if endMinute < 60 else 0
+        priority = priority + 1
+
+        minuteStr = str(minute) if minute > 0 else "00"
+        hourStr = str(hour) if hour > 9 else "0" + str(hour)
+        hourStr = "00" if hourStr == "24" else hourStr
+
+        endMinuteStr = str(endMinute) if endMinute > 0 else "00"
+        endHourStr = str(endHour) if endHour > 9 else "0" + str(endHour)
+        endHourStr = "00" if endHourStr == "24" else endHourStr
+
+        priorities[hourStr + ":" + minuteStr + "-" + endHourStr + ":" + endMinuteStr] = priority
+    
+
+
+    def compare(item1):
+        return priorities[item1["timestamp"]]
+
+    output_array = sorted(output_array, key=compare)
+    return Response({"response": output_array})
+
+
+
+
+
 class IsOwnerOrReadOnlyNote(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
