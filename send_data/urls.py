@@ -27,4 +27,11 @@ urlpatterns = [
     path('market/open/', OpenMarket.as_view()),
     path('market/close/', CloseMarket.as_view()),
     path('market/ohlc/', OhlcvDetail.as_view()),
+    
+    path('wallet/', WalletView.as_view()),
+
+    path('watchlist/', WatchListView.as_view()),
+    # path('watchlist/<int:pk>/', WatchDetailView.as_view()),
+    path('watchlist/<int:pk>/<int:fk>/', WatchDeleteView.as_view()),
+    # path('process-logs/', process_logs)
 ]

@@ -46,6 +46,20 @@ class Stocks(models.Model):
     sector = models.ForeignKey(Sectors, on_delete=models.CASCADE)
 
 
+class Stock_news(models.Model):
+    stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
+    news = models.TextField()
+
+
+class Watchlist(models.Model):
+    name = models.CharField(max_length=20, unique=False)
+
+
+class Watchlist_Stock(models.Model):
+    watchlist = models.ForeignKey(Watchlist, on_delete=models.CASCADE)
+    stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)
+
+
 class Holdings(models.Model):
     user = models.ForeignKey(MyUser, on_delete=models.CASCADE)
     stock = models.ForeignKey(Stocks, on_delete=models.CASCADE)

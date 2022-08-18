@@ -98,15 +98,6 @@ class RegisterUserAPIView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
     def post(self, request, *args, **kwargs):
-        # params = request.data
-        # keys = params.keys()
-        # return_error = {}
-        # if 'email' not in keys or params['email'] == '':
-        #     return_error.apppend({"email":["This field is required."]})
-        #     return Response({"email":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-        # elif 'password' not in keys or params['password'] == '':
-        #     return Response({"password":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             obj = serializer.save()
@@ -239,14 +230,21 @@ class StockList(APIView):
     def get(self, request, format=None):
         stock = Stocks.objects.all()
         serializer = StockSerializer(stock, many=True)
-        for each in serializer.data:
-            value = each['price'] * uniform(0.5, 1.5)
+        returnData = serializer.data
+        for each in returnData:
+            value = each['price'] * uniform(0.9, 1.1)
             each['price'] = '{:.2f}'.format(value)
             update_stock = Stocks.objects.get(pk=each['id'])
             update_stock.price = round(value, 2)
             update_stock.save()
 
-        return Response(serializer.data)
+            news = Stock_news.objects.filter(stock=each['id']).all()
+            news_data = NewsSerializer(news, many=True).data
+            each['news'] = []
+            for news_each in news_data:
+                each['news'].append(news_each['news'])
+
+        return Response(returnData)
 
     def post(self, request, format=None):
         user_id = request.user.id
@@ -285,7 +283,21 @@ class StockDetail(APIView):
         returndata = serializer.data
         value = returndata['price']
         returndata['price'] = '{:.2f}'.format(value)
+        news = Stock_news.objects.filter(stock=Stock.id).all()
+        news_data = NewsSerializer(news, many=True).data
+        returndata['news'] = []
+        for news_each in news_data:
+            returndata['news'].append(news_each['news'])
         return Response(returndata)
+
+    def patch(self, request, pk, format=None):
+        Stock = self.get_object(pk)
+        data = request.data
+        data['stock'] = Stock.id
+        serializer = NewsSerializer(data=data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response(serializer.data)
 
 
 class OrderList(APIView):
@@ -450,15 +462,15 @@ class OrderMatch(APIView):
                     transaction_price = sell_bid_price
                 # If a partial transaction occurs
                 if remain_volume > available_volume:
-                    transaction_volumn = available_volume
+                    transaction_volume = available_volume
                 else:
-                    transaction_volumn = remain_volume
+                    transaction_volume = remain_volume
 
                 # Transaction
-                transaction_fund = transaction_price * transaction_volumn
+                transaction_fund = transaction_price * transaction_volume
                 
-                sell_order.executed_volume += transaction_volumn
-                if transaction_volumn == available_volume:
+                sell_order.executed_volume += transaction_volume
+                if transaction_volume == available_volume:
                     sell_order.status = "COMPLETED"
                 sell_order.save()
                 sell_user = Users.objects.get(user_id=sell_order.user)
@@ -466,7 +478,7 @@ class OrderMatch(APIView):
                 sell_user.save()
                 ### decrease holdings
                 selling_list = Holdings.objects.filter(user=sell_order.user, stock=sell_order.stock).all()
-                discount_amount = transaction_volumn
+                discount_amount = transaction_volume
                 for selling in selling_list:
                     if discount_amount > selling.volume:
                         discount_amount -= selling.volume
@@ -478,30 +490,15 @@ class OrderMatch(APIView):
                         selling.save()
                         discount_amount = 0
                         break
-                ### increase ohlcv
-                ohlcvs = Ohlcv.objects.filter(day=market.day, stock=sell_order.stock.id)
-                if ohlcvs.exists():
-                    ohlcv = ohlcvs.first()
-                    ohlcv.volume += int(transaction_volumn)
-                    ohlcv.save()
-                else:
-                    Ohlcv.objects.create(
-                        day = day,
-                        stock = sell_order.stock,
-                        open = 0,
-                        high = 0,
-                        low = 0,
-                        close = 0,
-                        volume = transaction_volumn,
-                        market = market
-                    )
                 
-                buy_order.executed_volume += transaction_volumn
+                buy_order.executed_volume += transaction_volume
                 buy_user = Users.objects.get(user_id=buy_order.user)
                 buy_user.available_funds -= transaction_fund
-                buy_user.blocked_funds -= buy_bid_price * transaction_volumn
+                buy_user.blocked_funds -= buy_bid_price * transaction_volume
                 buy_user.save()
-                Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, bought_on=day)
+
+                self.ohlcv_transaction(market, buy_order.stock, transaction_price, transaction_volume)
+                Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volume, bid_price=transaction_price, bought_on=day)
 
             if buy_order.executed_volume == buy_bid_volume:
                 buy_order.status = "COMPLETED"
@@ -520,30 +517,58 @@ class OrderMatch(APIView):
             transaction_price = buy_bid_price
             # If a partial transaction occurs
             if remain_volume > available_volume:
-                transaction_volumn = available_volume
+                transaction_volume = available_volume
             else:
-                transaction_volumn = remain_volume
+                transaction_volume = remain_volume
 
             # Transaction
-            transaction_fund = transaction_price * transaction_volumn
-            
-            stock.unallocated -= transaction_volumn  
-            stock.price = buy_bid_price  
-            stock.save()
+            transaction_fund = transaction_price * transaction_volume
                 
-            buy_order.executed_volume += transaction_volumn
+            buy_order.executed_volume += transaction_volume
             buy_user = Users.objects.get(user_id=buy_order.user)
             buy_user.available_funds -= transaction_fund
-            buy_user.blocked_funds -= buy_bid_price * transaction_volumn
+            buy_user.blocked_funds -= buy_bid_price * transaction_volume
             buy_user.save()
-            Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volumn, bid_price=transaction_price, bought_on=day)
+            
+            self.ohlcv_transaction(market, buy_order.stock, transaction_price, transaction_volume)
+            
+            stock.unallocated -= transaction_volume  
+            stock.price = buy_bid_price  
+            stock.save()
+            Holdings.objects.create(user=buy_order.user, stock=buy_order.stock, volume=transaction_volume, bid_price=transaction_price, bought_on=day)
 
-            if transaction_volumn == remain_volume:
+            if transaction_volume == remain_volume:
                 buy_order.status = "COMPLETED"
                 
             buy_order.save()
         return Response({"message":"Orders Executed Successfully!"})
-                
+
+    def ohlcv_transaction(market, stock, transaction_price, transaction_volume):            
+        ### increase ohlcv
+        ohlcvs = Ohlcv.objects.filter(day=market.day, stock=stock.id)
+        if ohlcvs.exists():
+            ohlcv = ohlcvs.first()
+            ohlcv.high = max(ohlcv.high, transaction_price)
+            ohlcv.low = min(ohlcv.high, transaction_price)
+            ohlcv.close = transaction_price
+            ohlcv.volume += int(transaction_volume)
+            ohlcv.save()
+        else:
+            previous = Ohlcv.objects.filter(day=market.day-1, stock=stock.id)
+            if previous.exists():
+                open_price = previous.first().close
+            else:
+                open_price = stock.price
+            Ohlcv.objects.create(
+                day = market.day,
+                stock = stock,
+                open = open_price,
+                high = max(open_price, transaction_price),
+                low = min(open_price, transaction_price),
+                close = transaction_price,
+                volume = transaction_volume,
+                market = market
+            )                
 
 
 class GetHolding(APIView):
@@ -581,19 +606,6 @@ class OhlcvDetail(APIView):
     """
     def get(self, request, format=None):
         day = int(request.GET['day'])
-        if day == 0:
-            returnData = [
-                {
-                    "day": 0,
-                    "stock": "string",
-                    "open": "100.00",
-                    "low": "100.00",
-                    "high": "100.00",
-                    "close": "100.00",
-                    "volume": 100
-                }
-            ]
-            return Response(returnData)
         try:
             market = Market_day.objects.get(day=day)
         except:
@@ -603,27 +615,35 @@ class OhlcvDetail(APIView):
         for stock in stock_list:
             ohlcv = Ohlcv.objects.filter(market=market, stock=stock)
             if ohlcv.exists():
-                serializer = OhlcvSerializer(ohlcv.first())
-                fixed_data = {
-                    'day': serializer.data['day'],
-                    'stock': Stocks.objects.get(pk=serializer.data['stock']).name,
-                    'open': '{:.2f}'.format(serializer.data['open']),
-                    'high': '{:.2f}'.format(serializer.data['high']),
-                    'low': '{:.2f}'.format(serializer.data['low']),
-                    'close': '{:.2f}'.format(serializer.data['close']),
-                    'volume': serializer.data['volume']
-                }
-                returnData.append(fixed_data)
+                ohlcv = ohlcv.first()
             else:
-                returnData.append({
-                    'day': day,
-                    'stock': stock.name,
-                    'open': '-1.00',
-                    'high': '-1.00',
-                    'low': '-1.00',
-                    'close': '-1.00',
-                    'volume': 0
-                })
+                previous = Ohlcv.objects.filter(day=day-1, stock=stock)
+                if previous.exists():
+                    open_price = previous.first().close
+                else:
+                    open_price = stock.price
+                ohlcv = Ohlcv.objects.create(
+                    day=market.day,
+                    stock=stock,
+                    open=open_price,
+                    high=open_price,
+                    low=open_price,
+                    close=open_price,
+                    volume=0,
+                    market=market
+                )
+
+            serializer = OhlcvSerializer(ohlcv)
+            fixed_data = {
+                'day': serializer.data['day'],
+                'stock': Stocks.objects.get(pk=serializer.data['stock']).name,
+                'open': '{:.2f}'.format(serializer.data['open']),
+                'high': '{:.2f}'.format(serializer.data['high']),
+                'low': '{:.2f}'.format(serializer.data['low']),
+                'close': '{:.2f}'.format(serializer.data['close']),
+                'volume': serializer.data['volume']
+            }
+            returnData.append(fixed_data)
         return Response(returnData)
 
 
@@ -637,6 +657,8 @@ class OpenMarket(APIView):
     def post(self, request, format=None):
         market = Market_day.objects.filter()
         if market.exists():
+            if market.latest('day').status == "OPEN":
+                return Response(status=status.HTTP_204_NO_CONTENT)
             day = market.latest('day').day + 1
         else:
             day = 1
@@ -647,6 +669,26 @@ class OpenMarket(APIView):
         serializer = MarketSerializer(data=data)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
+            market = Market_day.objects.get(day=day)
+        
+        stock_list = Stocks.objects.all()
+        for stock in stock_list:
+            previous = Ohlcv.objects.filter(day=day-1, stock=stock)
+            if previous.exists():
+                open_price = '{:.2f}'.format(previous.first().close)
+            else:
+                open_price = stock.price
+
+            Ohlcv.objects.create(
+                day=market.day,
+                stock=stock,
+                open=open_price,
+                high=open_price,
+                low=open_price,
+                close=open_price,
+                volume=0,
+                market=market
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -667,34 +709,184 @@ class CloseMarket(APIView):
             market = Market_day.objects.create(day=1, status="CLOSE")
 
         stock_list = Stocks.objects.all()
-        for stock in stock_list:
-            holding_list = Holdings.objects.filter(stock=stock, bought_on=market.day)
-            if holding_list.exists():
-                open_price = holding_list.order_by('id').first().bid_price
-                close_price = holding_list.order_by('-id').first().bid_price
-                high_price = holding_list.order_by('-bid_price').first().bid_price
-                low_price = holding_list.order_by('bid_price').first().bid_price
-                volume = holding_list.aggregate(Sum('volume'))['volume__sum']
-                
-                ohlcvs = Ohlcv.objects.filter(day=market.day,stock=stock.id)
-                if ohlcvs.exists():
-                    ohlcv = ohlcvs.first()
-                    ohlcv.open = open_price
-                    ohlcv.high = high_price
-                    ohlcv.low = low_price
-                    ohlcv.close = close_price
-                    ohlcv.volume += volume
-                    ohlcv.save()
+        for stock in stock_list:              
+            ohlcvs = Ohlcv.objects.filter(day=market.day,stock=stock.id)
+            if ohlcvs.exists():
+                ohlcv = ohlcvs.first()
+                ohlcv.close = stock.price
+                ohlcv.save()
+            else:
+                previous = Ohlcv.objects.filter(day=market.day-1, stock=stock)
+                if previous.exists():
+                    open_price = '{:.2f}'.format(previous.first().close)
                 else:
-                    Ohlcv.objects.create(
-                        day=market.day,
-                        stock=stock,
-                        open=open_price,
-                        high=high_price,
-                        low=low_price,
-                        close=close_price,
-                        volume=volume,
-                        market=market
-                    )
+                    open_price = stock.price
+                Ohlcv.objects.create(
+                    day=market.day,
+                    stock=stock,
+                    open=open_price,
+                    high=open_price,
+                    low=open_price,
+                    close=open_price,
+                    volume=0,
+                    market=market
+                )
 
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WalletView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
+    def get(self, request, format=None):
+        user_id = request.user.id
+        user = Users.objects.get(user_id=user_id)
+        user.available_funds = 0
+        user.save()
+        
+        return Response({"Withdraw money successfully!"}, status=status.HTTP_200_OK)
+
+    def post(self, request, format=None):
+        user_id = request.user.id
+        user = Users.objects.get(user_id=user_id)
+        data = request.data
+        serializer = WalletSerializer(data=data)        
+        if serializer.is_valid(raise_exception=True):
+            user.available_funds += data['amount']
+            user.save()
+            return Response({"Added money to wallet!"}, status=status.HTTP_200_OK)
+            
+
+class WatchListView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
+
+    def get(self, request, format=None):
+        watchlists = Watchlist.objects.all()
+        returnData = []
+        for watchlist in watchlists:
+            stocks = Watchlist_Stock.objects.filter(watchlist=watchlist.id).all()
+            serializer = Watchlist_StockSerializer(stocks, many=True)
+            eachData = {
+                'id': watchlist.id,
+                'stocks': []
+            }
+            for each in serializer.data:
+                eachData['stocks'].append(each['stock'])
+            returnData.append(eachData)
+        
+        return Response(returnData)
+
+    def post(self, request, format=None):
+        data = request.data
+        
+        serializer = WatchlistSerializer(data=data)
+        if serializer.is_valid(raise_exception=True):
+            obj = serializer.save()
+        
+        if 'stocks' not in data.keys() or data['stocks'] == '':
+            return Response({"stocks":["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        elif type(data['stocks']) != list:
+            return Response({"stocks":["A valid list of integer is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            stocks = []
+            for each in data['stocks']:
+                if type(each) != int:  
+                    Response({"stocks2":["A valid list of integer is required."]}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    serializer_data = {
+                        'watchlist': obj.id,
+                        'stock': each
+                    }
+                    serializer = Watchlist_StockSerializer(data=serializer_data)
+                    if serializer.is_valid(raise_exception=True):
+                        serializer.save()
+                        stocks.append(each)
+        
+            response_data = {
+                'id': obj.id,
+                'name': obj.name,
+                'stocks': stocks
+            }
+            return Response(response_data, status=status.HTTP_201_CREATED)
+            
+
+# class WatchDetailView(APIView):
+#     permission_classes = [
+#         IsAuthenticated,
+#     ]
+#     authentication_classes = [
+#         TokenAuthentication,
+#     ]
+
+#     def get(self, request, pk, format=None):
+#         try:
+#             watchlist = Watchlist.objects.get(pk=pk)
+#         except Watchlist.DoesNotExist:
+#             raise Http404
+#         stocks = Watchlist_Stock.objects.filter(watchlist=watchlist.id).all()
+#         serializer = Watchlist_StockSerializer(stocks, many=True)
+#         returnData = {
+#             'id': watchlist.id,
+#             'stocks': []
+#         }
+#         for each in serializer.data:
+#             returnData['stocks'].append(each['stock'])
+        
+#         return Response(returnData)
+            
+
+class WatchDeleteView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    authentication_classes = [
+        TokenAuthentication,
+    ]
+
+    def delete(self, request, pk, fk, format=None):
+        try:
+            watchlist = Watchlist.objects.get(pk=pk)
+        except Watchlist.DoesNotExist:
+            raise Http404
+        stock = Watchlist_Stock.objects.get(watchlist=watchlist.id, stock=fk)
+        stock.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def patch(self, request, pk, fk, format=None):
+        try:
+            watchlist = Watchlist.objects.get(pk=pk)
+        except Watchlist.DoesNotExist:
+            raise Http404
+        stock = Watchlist_Stock.objects.filter(watchlist=watchlist.id, stock=fk)
+        if not stock.exists():
+            serializer_data = {
+                'watchlist': pk,
+                'stock': fk
+            }
+            serializer = Watchlist_StockSerializer(data=serializer_data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+
+        stocks = Watchlist_Stock.objects.filter(watchlist=watchlist.id).all()
+        serializer = Watchlist_StockSerializer(stocks, many=True)
+        returnData = {
+            'id': watchlist.id,
+            'stocks': []
+        }
+        for each in serializer.data:
+            returnData['stocks'].append(each['stock'])
+        
+        return Response(returnData)
+
+        
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,4 +1,5 @@
 from dataclasses import fields
+from importlib.metadata import requires
 from rest_framework import serializers
 # from django.contrib.auth.models import User
 from rest_framework.validators import UniqueValidator
@@ -81,6 +82,12 @@ class StockSerializer(serializers.ModelSerializer):
         fields = ['id', 'sector', 'name', 'total_volume', 'unallocated', 'price']
 
 
+class NewsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Stock_news
+        fields = ['stock', 'news']
+
+
 #Serializer for order
 class OrderSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(input_formats='%b %d %Y %H:%M:%S', required=False)
@@ -104,8 +111,20 @@ class OhlcvSerializer(serializers.ModelSerializer):
         fields = ['day', 'stock', 'open', 'low', 'high', 'close', 'volume']
 
 
-#Serializer for holding
-# class HoldingSerializer(serializers.Serializer):
-    # id = serializers.IntegerField()
-    # avg_bid_price = serializers.FloatField()
-    # total_volume = serializers.FloatField()
+# Serializer for wallet
+class WalletSerializer(serializers.Serializer):
+    amount = serializers.IntegerField(required=True)
+
+
+# Serializer for watchlist
+class WatchlistSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Watchlist
+        fields = ['name']
+
+
+# Serializer for watchlist_stock
+class Watchlist_StockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Watchlist_Stock
+        fields = ['watchlist', 'stock']
