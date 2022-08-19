@@ -154,6 +154,34 @@ def process_logs(request):
     output_array = sorted(output_array, key=compare)
     return Response({"response": output_array})
 
+from random import uniform
+from urllib import response
+from rest_framework.permissions import AllowAny, BasePermission, SAFE_METHODS, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .serializers import *
+# from django.contrib.auth.models import User
+from rest_framework.authentication import TokenAuthentication
+from rest_framework import generics
+from .models import *
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from django.http import Http404
+from django.utils import timezone
+from django.db.models import Sum, Avg, F
+
+from djoser import signals, utils
+from djoser.compat import get_user_email
+from djoser.conf import settings
+# from opentelemetry import trace, metrics
+
+from flask import Flask, request
+
+# Acquire a tracer
+# tracer = trace.get_tracer(__name__)
+# meter = metrics.get_meter(__name__)
+
+# app = Flask(__name__)
 
 
 class IsOwnerOrReadOnlyNote(BasePermission):
@@ -940,8 +968,9 @@ class WatchListView(APIView):
                 'name': watchlist.name,
                 'stocks': []
             }
-            for each in serializer.data:
-                eachData['stocks'].append(each['stock'])
+            for each in stocks:
+                serializer = StockSerializer(each.stock)
+                eachData['stocks'].append(serializer.data)
             returnData.append(eachData)
         
         return Response(returnData)
@@ -1060,10 +1089,10 @@ class GainerView(APIView):
         gainer = Ohlcv.objects.filter(day=market.day).annotate(gain=(F('close') - F('open')) * (100 / F('open'))).order_by('-gain')
         returnData = []
         for gain in gainer:
-            returnData.append({
-                'id': gain.stock.id,
-                'gain': '{:.2f}'.format(gain.gain)
-            })
+            serializer = StockSerializer(gain.stock)
+            data = serializer.data
+            data['gain'] = '{:.2f}'.format(gain.gain)
+            returnData.append(data)
 
         return Response(returnData)
 
@@ -1078,9 +1107,9 @@ class LoserView(APIView):
         loser = Ohlcv.objects.filter(day=market.day).annotate(lose=(F('close') - F('open')) * (100 / F('open'))).order_by('lose')
         returnData = []
         for lose in loser:
-            returnData.append({
-                'id': lose.stock.id,
-                'lose': '{:.2f}'.format(lose.lose)
-            })
+            serializer = StockSerializer(lose.stock)
+            data = serializer.data
+            data['lose'] = '{:.2f}'.format(lose.lose)
+            returnData.append(data)
 
         return Response(returnData)
