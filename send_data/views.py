@@ -156,8 +156,6 @@ def process_logs(request):
 
 
 
-
-
 class IsOwnerOrReadOnlyNote(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
@@ -368,10 +366,13 @@ class StockList(APIView):
         serializer = StockSerializer(stock, many=True)
         returnData = serializer.data
         for each in returnData:
-            value = each['price'] * uniform(0.9, 1.1)
+            if market.status == "OPEN":
+                value = round(each['price'] * uniform(0.9, 1.1), 2)
+            else:
+                value = each['price']
             each['price'] = '{:.2f}'.format(value)
             update_stock = Stocks.objects.get(pk=each['id'])
-            update_stock.price = round(value, 2)
+            update_stock.price = value
             update_stock.save()
             
             ohlcvs = Ohlcv.objects.filter(day=market.day, stock=update_stock.id)
@@ -379,6 +380,7 @@ class StockList(APIView):
                 ohlcv = ohlcvs.first()
                 ohlcv.high = max(ohlcv.high, update_stock.price)
                 ohlcv.low = min(ohlcv.low, update_stock.price)
+                ohlcv.close = update_stock.price
                 ohlcv.save()
             else:
                 previous = Ohlcv.objects.filter(day=market.day-1, stock=update_stock.id)
@@ -1047,5 +1049,38 @@ class WatchDeleteView(APIView):
         
         return Response(returnData)
 
-        
-        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class GainerView(APIView):
+    def get(self,request,*args,**kwargs):
+        markets = Market_day.objects
+        if markets.exists():
+            market = markets.filter().latest('day')
+        else:
+            market = Market_day.objects.create(day=1, status="OPEN")
+        gainer = Ohlcv.objects.filter(day=market.day).annotate(gain=(F('close') - F('open')) * (100 / F('open'))).order_by('-gain')
+        returnData = []
+        for gain in gainer:
+            returnData.append({
+                'id': gain.stock.id,
+                'gain': '{:.2f}'.format(gain.gain)
+            })
+
+        return Response(returnData)
+
+
+class LoserView(APIView):
+    def get(self,request,*args,**kwargs):
+        markets = Market_day.objects
+        if markets.exists():
+            market = markets.filter().latest('day')
+        else:
+            market = Market_day.objects.create(day=1, status="OPEN")
+        loser = Ohlcv.objects.filter(day=market.day).annotate(lose=(F('close') - F('open')) * (100 / F('open'))).order_by('lose')
+        returnData = []
+        for lose in loser:
+            returnData.append({
+                'id': lose.stock.id,
+                'lose': '{:.2f}'.format(lose.lose)
+            })
+
+        return Response(returnData)
